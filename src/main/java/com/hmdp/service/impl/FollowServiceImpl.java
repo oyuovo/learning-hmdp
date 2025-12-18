@@ -1,14 +1,24 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.conditions.query.QueryChainWrapper;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Follow;
 import com.hmdp.mapper.FollowMapper;
 import com.hmdp.service.IFollowService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+
+import javax.annotation.Resource;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -20,6 +30,30 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> implements IFollowService {
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private IUserService userService;
+
+    @Override
+    public Result common(Long id) {
+        Long userId = UserHolder.getUser().getId();
+        //求交集
+        Set<String> intersect = stringRedisTemplate.opsForSet().intersect("follows:" + userId, "follows:" + id);
+        //解析id集合
+        List<Long> ids = intersect.stream().map(Long::valueOf).collect(Collectors.toList());
+        if(ids == null || ids.isEmpty()){
+            return Result.ok(Collections.EMPTY_LIST);
+        }
+        List<UserDTO> collect = userService.listByIds(ids)
+                .stream()
+                .map(user -> BeanUtil.copyProperties(user, UserDTO.class))
+                .collect(Collectors.toList());
+        return Result.ok(collect);
+    }
+
     @Override
     public Result follow(Long id, Boolean isFollow) {
         //获取当前用户
@@ -30,11 +64,16 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             Follow follow = new Follow();
             follow.setUserId(userId);
             follow.setFollowUserId(id);
-            boolean save = save(follow);
-            return save?Result.ok():Result.fail("关注失败");
+            boolean isSuccess = save(follow);
+            if(isSuccess) {
+                stringRedisTemplate.opsForSet().add("follows:" + userId, id.toString());
+            }
         }else {
             //2.2取关
-            remove(new QueryWrapper<Follow>().eq("user_id", userId).eq("follow_user_id", id));
+            boolean isSuccess = remove(new QueryWrapper<Follow>().eq("user_id", userId).eq("follow_user_id", id));
+            if(isSuccess) {
+                stringRedisTemplate.opsForSet().remove("follows:" + userId, id.toString());
+            }
         }
             return Result.ok();
         }
