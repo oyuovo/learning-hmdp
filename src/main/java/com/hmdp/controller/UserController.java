@@ -62,8 +62,7 @@ public class UserController {
      */
     @PostMapping("/logout")
     public Result logout(){
-        // TODO 实现登出功能
-        return Result.fail("功能未完成");
+        return userService.logout();
     }
 
     @GetMapping("/me")
@@ -96,5 +95,13 @@ public class UserController {
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         // 返回
         return Result.ok(userDTO);
+    }
+    @PostMapping("/sign")
+    public Result sign(){
+        return userService.sign();
+    }
+    @GetMapping("/sign/count")
+    public Result signCount(){
+        return userService.signCount();
     }
 }
