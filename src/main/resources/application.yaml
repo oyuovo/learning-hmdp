@@ -9,7 +9,7 @@ spring:
     username: root
     password: 181214
   redis:
-    host: 192.168.110.128
+    host: 192.168.12.128
     port: 6379
     password: 1029384756
     lettuce:
@@ -25,3 +25,14 @@ mybatis-plus:
 logging:
   level:
     com.hmdp: debug
+hmdp:
+  jwt:
+    #    # 设置jwt签名加密时使用的秘钥
+    #    admin-secret-key: itcast
+    #    # 设置jwt过期时间
+    #    admin-ttl: 7200000
+    #    # 设置前端传递过来的令牌名称
+    #    admin-token-name: token
+    user-secret-key: ThisIsA32BytesLongSecretKeyForHS256
+    user-ttl: 7200000
+    user-token-name: authorization

@@ -5,15 +5,19 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.constant.JwtClaimsConstant;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
+import com.hmdp.properties.JwtProperties;
 import com.hmdp.service.IUserService;
+import com.hmdp.utils.JwtUtil;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -25,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.*;
@@ -43,6 +48,8 @@ import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    private JwtProperties jwtProperties;
 
     @Override
     public Result logout() {
@@ -146,18 +153,25 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             //不存在，创建新用户
             user = createUserWithPhone(phone);
         }
-        //随机生成token，作为登陆令牌
-        String token = UUID.randomUUID().toString(true);
+//        //随机生成token，作为登陆令牌
+//        String token = UUID.randomUUID().toString(true);
         //将User对象转为Hash存储
+        Map<String,Object> claims = new HashMap<>();
+        claims.put(JwtClaimsConstant.USER_ID,user.getId());
+//        String token = JwtUtil.createJWT(jwtProperties.getSecretKey(),jwtProperties.getTtl(),claims);
+//        String jwttoken = JwtUtil.createJWT("ThisIsA32BytesLongSecretKeyForHS256",30*60*1000,claims);
+        String jwttoken = JwtUtil.createJWT(jwtProperties.getUserSecretKey(),jwtProperties.getUserTtl(),claims);
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
-        stringRedisTemplate.opsForHash().putAll(LOGIN_USER_KEY + token, BeanUtil.beanToMap(userDTO, new HashMap<>(),
+        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO, new HashMap<>(), //beanToMap方法执行了对象到Map的转换
                 CopyOptions.create()
-                        .setIgnoreNullValue(true)
-                        .setFieldValueEditor((fieldName, fieldvalue) -> fieldvalue.toString())));
+                        .setIgnoreNullValue(true) //BeanUtil在转换过程中忽略所有null值的属性
+                        .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString())); //对于每个字段值，它简单地调用toString()方法，将字段值转换为字符串。
+        userMap.put("jwttoken", jwttoken);
+        stringRedisTemplate.opsForHash().putAll(LOGIN_USER_KEY + userDTO.getId(), userMap);
         //设置token有效期
-        stringRedisTemplate.expire(LOGIN_USER_KEY + token, LOGIN_USER_TTL, TimeUnit.SECONDS);
+        stringRedisTemplate.expire(LOGIN_USER_KEY + jwttoken, LOGIN_USER_TTL, TimeUnit.SECONDS);
         //返回token
-        return Result.ok(token);
+        return Result.ok(jwttoken);
     }
 
     private User createUserWithPhone(String phone) {
