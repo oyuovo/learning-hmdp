@@ -7,11 +7,11 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/hmdp?useSSL=false&allowPublicKeyRetrieval=true
     username: root
-    password: 181214
+    password:
   redis:
     host: 192.168.12.128
     port: 6379
-    password: 1029384756
+    password:
     lettuce:
       pool:
         max-active: 10
@@ -35,4 +35,5 @@ hmdp:
     #    admin-token-name: token
     user-secret-key: ThisIsA32BytesLongSecretKeyForHS256
     user-ttl: 7200000
+
     user-token-name: authorization
